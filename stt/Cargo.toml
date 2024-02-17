@@ -1,0 +1,15 @@
+[package]
+name = "stt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.78"
+# burn = { git = "https://github.com/burn-rs/burn.git", rev = "fb2a71bb81e1a688b4cdae38729b24dd9361283f" }
+# burn-wgpu = { git = "https://github.com/burn-rs/burn.git", rev = "fb2a71bb81e1a688b4cdae38729b24dd9361283f" }
+futures-util = "0.3.30"
+# kalosm = "0.1.0"
+# whisper = { path = "../../whisper-burn", default-features = false, features = [
+#     "wgpu-backend",
+# ] }
+tokio = { version = "1.35.1", features = ["full"] }

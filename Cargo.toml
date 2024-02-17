@@ -1,7 +1,9 @@
-[package]
-name = "youth"
-version = "0.1.0"
-authors = ["leudz <dylan.ancel@gmail.com>"]
-edition = "2018"
+[workspace]
+members = ["llm", "rag", "shared", "stt", "tts", "youth"]
+resolver = "2"
 
-[dependencies]
+[workspace.dependencies]
+indicatif = "0.17.7"
+
+[profile.dev]
+opt-level = 3

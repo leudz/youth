@@ -1,0 +1,14 @@
+[package]
+name = "youth"
+version = "0.1.0"
+authors = ["leudz <dylan.ancel@gmail.com>"]
+edition = "2021"
+resolver = "2"
+default-run = "youth"
+
+[dependencies]
+llm = { path = "../llm" }
+tokio = "1.35.1"
+stt = { path = "../stt" }
+tts = { path = "../tts" }
+rag = { path = "../rag" }

@@ -1,0 +1,11 @@
+[package]
+name = "tts"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cpal = "0.15.2"
+# octocrab = "0.32.0"
+rodio = "0.17.3"
+shared = { path = "../shared" }
+tokio = "1.35.1"

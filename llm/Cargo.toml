@@ -1,0 +1,13 @@
+[package]
+name = "llm"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+rag = { path = "../rag" }
+reqwest = { version = "0.11.23", features = ["json"] }
+serde = "1.0"
+serde_json = "1.0"
+shared = { path = "../shared" }
+tts = { path = "../tts" }
