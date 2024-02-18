@@ -8,7 +8,6 @@ default-run = "youth"
 
 [dependencies]
 llm = { path = "../llm" }
-tokio = "1.35.1"
 stt = { path = "../stt" }
 tts = { path = "../tts" }
 rag = { path = "../rag" }

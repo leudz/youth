@@ -2,8 +2,7 @@ use llm::{Model, Speaker, LLM};
 use rag::RAG;
 use std::io::stdin;
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let mut rag = RAG::new();
 
     // for file in
@@ -19,7 +18,7 @@ async fn main() {
     let rag_context = rag.search_threashold("Let's do wires", 5, 0.30);
     // dbg!(&rag_context);
 
-    let mut llm = LLM::init(Model::Mistral, "Leudz", "Emma").await;
+    let mut llm = LLM::init(Model::Mistral, "Leudz", "Emma");
 
     llm.history_mut().add_instruction("I'm going to describe you modules. You will ask me questions to collect relevant details on the module. You can ask as many questions as you want, one at a time. Based on the instructions in the context and the description I gave you, tell me how to solve the module. Don't rely on prior knowledge, only on the information I give you.");
     llm.history_mut().add_context(rag_context.join("\n\n"));
@@ -49,7 +48,7 @@ async fn main() {
         llm.history_mut().add(input.clone(), Speaker::User);
         input.clear();
 
-        let reply = llm.send().await;
+        let reply = llm.send();
 
         println!("> {reply}");
 

@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use shared::END_OF_SENTENCE;
 use std::{
     collections::VecDeque,
@@ -10,7 +9,6 @@ use tts::TTS;
 
 pub struct LLM {
     process: Child,
-    http_client: reqwest::Client,
     model: Model,
     history: History,
     tts: TTS,
@@ -18,7 +16,7 @@ pub struct LLM {
 }
 
 impl LLM {
-    pub async fn init(model: Model, user: impl Into<String>, assistant: impl Into<String>) -> LLM {
+    pub fn init(model: Model, user: impl Into<String>, assistant: impl Into<String>) -> LLM {
         let mut process = Command::new("./resources/koboldcpp_rocm.exe")
             .stderr(Stdio::null())
             .stdin(Stdio::null())
@@ -36,13 +34,10 @@ impl LLM {
         stdout.read_exact(&mut buf).unwrap();
         assert_eq!(&buf, b"done");
 
-        let http_client = reqwest::Client::new();
-
         let tts = TTS::new();
 
         LLM {
             process,
-            http_client,
             model,
             history: History::new(model, user, assistant),
             tts,
@@ -50,16 +45,12 @@ impl LLM {
         }
     }
 
-    pub async fn send(&self) -> String {
-        let request = self
-            .http_client
-            .post("http://localhost:5001/api/v1/generate")
-            .json(&GenerateRequest::new(&self.model, &self.history))
-            .build()
+    pub fn send(&self) -> String {
+        let mut response: GenerateResponse = ureq::post("http://localhost:5001/api/v1/generate")
+            .send_json(&GenerateRequest::new(&self.model, &self.history))
+            .unwrap()
+            .into_json()
             .unwrap();
-
-        let response = self.http_client.execute(request).await.unwrap();
-        let mut response: GenerateResponse = response.json().await.unwrap();
 
         let reply = response.results.remove(0).text;
 
