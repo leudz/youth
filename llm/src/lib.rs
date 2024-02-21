@@ -1,7 +1,7 @@
 use shared::END_OF_SENTENCE;
 use std::{
     collections::VecDeque,
-    fmt::Display,
+    fmt::Write,
     io::Read,
     process::{Child, Command, Stdio},
 };
@@ -39,7 +39,7 @@ impl LLM {
         LLM {
             process,
             model,
-            history: History::new(model, user, assistant),
+            history: History::new(user, assistant),
             tts,
             tts_enabled: true,
         }
@@ -131,7 +131,7 @@ struct GenerateRequest {
 impl GenerateRequest {
     fn new(model: &Model, history: &History) -> GenerateRequest {
         GenerateRequest {
-            prompt: model.prompt(history),
+            prompt: model.template().prompt(history),
             min_p: 0.1,
             rep_pen: 1.07,
             rep_pen_range: 2048,
@@ -160,111 +160,30 @@ struct GenerateResult {
 
 #[derive(Clone, Copy)]
 pub enum Model {
+    /// https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF
     Mistral,
+    /// https://huggingface.co/TheBloke/Mixtral-8x7B-Instruct-v0.1-GGUF
     Mixtral,
+    /// https://huggingface.co/cognitivecomputations/laserxtral-GGUF
     Laserxtral,
     /// https://huggingface.co/TheBloke/OpenHermes-2.5-Mistral-7B-GGUF
     OpenHermes,
+    /// https://huggingface.co/ycros/BagelMIsteryTour-v2-8x7B-GGUF
     BagelMysteryTour,
+    /// https://huggingface.co/ycros/BagelWorldTour-8x7B-GGUF
     BagelWorldTour,
+    /// https://huggingface.co/Artefact2/BondBurger-8x7B-GGUF
     BondBurger,
 }
 
 impl Model {
-    fn prompt(&self, history: &History) -> String {
-        let instruction = &history.instruction;
-        let context = &history.context;
-        let user = &history.user;
-        let assistant = &history.assistant;
-
-        // let context = (!history.context.is_empty())
-        //     .then(|| {
-        //         format!(
-        //             "\
-        //             \nContext information is below.\n\
-        //             ---------------------\n\
-        //             {context}\n\
-        //             ---------------------\n\
-        //             Given the context information and not prior knowledge, answer the query.\n\
-        //             Query: {instruction}\n"
-        //         )
-        //     })
-        //     .unwrap_or_default();
-
-        let context = (!history.context.is_empty())
-            .then(|| {
-                format!(
-                    "\
-                    \nContext information is below.\n\
-                    ---------------------\n\
-                    {context}\n\
-                    ---------------------\n\n"
-                )
-            })
-            .unwrap_or_default();
-
+    fn template(&self) -> PromptTemplate {
         match self {
-            // Model::Mistral | Model::Mixtral | Model::BagelWorldTour => format!(
-            //     "<s>[INST] You are an AI assistant \
-            //         named {assistant} created by Leudz. You are naturally loyal, \
-            //         empathetic and little sassy. You were created to help others.\n\
-            //         You're having a conversation with {user}. Take your time to reply based on the \
-            //         context. Keep your replies concise.\n\
-            //         {context} [/INST]\n\
-            //         {user}: {instruction}\n\
-            //         {history}"
-            // ),
-            Model::Mistral
-            | Model::Mixtral
-            | Model::BagelWorldTour
-            | Model::BondBurger
-            | Model::BagelMysteryTour => {
-                format!(
-                    "[INST] You are an AI assistant named {assistant} \
-                    created by Leudz to help {user} achieve a very important task.\n\
-                    You have a naturally loyal, empathetic and little sassy personality.\n\
-                    Take your time to reply based on the context. Keep your replies concise.\n\n\
-                    {context}{instruction}\n\n\
-                    {history}"
-                )
+            Model::Mistral | Model::Mixtral | Model::BondBurger | Model::BagelWorldTour => {
+                PromptTemplate::Mistral
             }
-            Model::OpenHermes | Model::Laserxtral => format!(
-                "<|im_start|>system\n\
-                    You are an AI assistant named {assistant} \
-                    created by Leudz to help {user} achieve a very important task.\n\
-                    You have a naturally loyal, empathetic and little sassy personality.\n\
-                    You're having a conversation with {user}. Take your time to reply based on the \
-                    context. Keep your replies concise.\n\
-                    {context}<|im_end|>\n\
-                    <|im_start|>user\n\
-                    {user}: {instruction}<|im_end|>\n\
-                    {history}"
-            ),
-            // Model::BagelMysteryTour => {
-            //     format!(
-            //         "### Instruction:\n\
-            //             You are an AI assistant named {assistant} \
-            //             created by Leudz to help {user} achieve a very important task.\n\
-            //             You have a naturally loyal, empathetic and little sassy personality.\n\
-            //             You're having a conversation with {user}. Take your time to reply based on the \
-            //             context. Keep your replies concise.\n\
-            //             {context}\
-            //             ### Input:\n{user}: {instruction}\n\
-            //             {history}"
-            //     )
-            // }
-            Model::BagelMysteryTour => {
-                format!(
-                    "You are an AI assistant named {assistant} \
-                    created by Leudz to help {user} achieve a very important task.\n\
-                    You have a naturally loyal, empathetic and little sassy personality.\n\
-                    Take your time to reply based on the context. Keep your replies concise.\n\n\
-                    ### Instruction:\n\
-                    {context}\
-                    {instruction}\n\n\
-                    {history}"
-                )
-            }
+            Model::OpenHermes | Model::Laserxtral => PromptTemplate::ChatML,
+            Model::BagelMysteryTour => PromptTemplate::Alpaca,
         }
     }
 
@@ -309,7 +228,6 @@ impl Model {
 
 pub struct History {
     history: VecDeque<HistoryEntry>,
-    model: Model,
     user: String,
     assistant: String,
     context: String,
@@ -317,10 +235,9 @@ pub struct History {
 }
 
 impl History {
-    fn new(model: Model, user: impl Into<String>, assistant: impl Into<String>) -> History {
+    fn new(user: impl Into<String>, assistant: impl Into<String>) -> History {
         History {
             history: VecDeque::new(),
-            model,
             user: user.into(),
             assistant: assistant.into(),
             context: String::new(),
@@ -354,84 +271,148 @@ pub enum Speaker {
     Assistant,
 }
 
-impl Display for History {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let user = &self.user;
-        let assistant = &self.assistant;
+enum PromptTemplate {
+    Mistral,
+    ChatML,
+    Alpaca,
+}
 
-        match self.model {
-            // Model::Mistral | Model::Mixtral | Model::BagelWorldTour => {
-            //     for entry in &self.history {
-            //         let speaker = match entry.speaker {
-            //             Speaker::User => &self.user,
-            //             Speaker::Assistant => &self.assistant,
-            //         };
-            //         let text = &entry.text;
+impl PromptTemplate {
+    fn prompt(&self, history: &History) -> String {
+        let instruction = &history.instruction;
+        let context = &history.context;
+        let user = &history.user;
+        let assistant = &history.assistant;
+        let history = self.history(&history);
 
-            //         writeln!(f, "{speaker}: {text}")?;
-            //     }
+        match self {
+            PromptTemplate::Mistral => {
+                let context = (!context.is_empty())
+                    .then(|| {
+                        format!(
+                            "\
+                            Context information is below.\n\
+                            ---------------------\n\
+                            {context}\n\
+                            ---------------------\n\n"
+                        )
+                    })
+                    .unwrap_or_default();
 
-            //     write!(f, "{}:", &self.assistant)?;
-            // }
-            Model::Mistral
-            | Model::Mixtral
-            | Model::BagelWorldTour
-            | Model::BagelMysteryTour
-            | Model::BondBurger => {
-                // if !self.instruction.is_empty() {
-                //     write!(f, "[INST] {} [/INST]", self.instruction)?;
-                // }
+                let instruction = (!instruction.is_empty())
+                    .then(|| format!("{instruction}\n\n"))
+                    .unwrap_or_default();
 
-                write!(f, "{} [/INST]", self.history[0].text)?;
+                format!(
+                    "[INST] You are an AI assistant named {assistant} \
+                    created by Leudz to help {user} achieve a very important task.\n\
+                    You are loyal, empathetic and little sassy.\n\
+                    Take your time to reply based on the context. Keep your replies concise.\n\n\
+                    {context}{instruction}\
+                    {history}"
+                )
+            }
+            PromptTemplate::ChatML => {
+                let context = (!context.is_empty())
+                    .then(|| {
+                        format!(
+                            "\
+                            \nContext information is below.\n\
+                            ---------------------\n\
+                            {context}\n\
+                            ---------------------"
+                        )
+                    })
+                    .unwrap_or_default();
 
-                for entry in self.history.iter().skip(1) {
+                let instruction = (!instruction.is_empty())
+                    .then(|| format!("{instruction}\n\n"))
+                    .unwrap_or_default();
+
+                format!(
+                    "<|im_start|>system\n\
+                    You are an AI assistant named {assistant} \
+                    created by Leudz to help {user} achieve a very important task.\n\
+                    You are loyal, empathetic and little sassy.\n\
+                    You're having a conversation with {user}. Take your time to reply based on the \
+                    context. Keep your replies concise.\
+                    {context}<|im_end|>\n\
+                    <|im_start|>user\n\
+                    {instruction}\
+                    {history}"
+                )
+            }
+            PromptTemplate::Alpaca => {
+                let context = (!context.is_empty())
+                    .then(|| format!("### Input:\n{context}\n\n"))
+                    .unwrap_or_default();
+
+                let instruction = (!instruction.is_empty())
+                    .then(|| format!("{instruction}\n\n"))
+                    .unwrap_or_default();
+
+                format!(
+                    "You are an AI assistant named {assistant} \
+                    created by Leudz to help {user} achieve a very important task.\n\
+                    You are loyal, empathetic and little sassy.\n\
+                    Take your time to reply based on the context. Keep your replies concise.\n\n\
+                    {context}\
+                    ### Instruction:\n\
+                    {instruction}\
+                    {history}"
+                )
+            }
+        }
+    }
+
+    fn history(&self, history: &History) -> String {
+        let history = &history.history;
+
+        let mut s = String::new();
+
+        match self {
+            PromptTemplate::Mistral => {
+                write!(s, "{} [/INST]", history[0].text).unwrap();
+
+                for entry in history.iter().skip(1) {
                     let text = &entry.text;
 
                     match entry.speaker {
-                        Speaker::User => write!(f, "[INST] {text} [/INST]")?,
-                        Speaker::Assistant => write!(f, " {text}</s>")?,
+                        Speaker::User => write!(s, "[INST] {text} [/INST]").unwrap(),
+                        Speaker::Assistant => write!(s, " {text}</s>").unwrap(),
                     };
                 }
             }
-            Model::Laserxtral | Model::OpenHermes => {
-                for entry in &self.history {
+            PromptTemplate::ChatML => {
+                writeln!(s, "{}<|im_end|>", history[0].text).unwrap();
+
+                for entry in history.iter().skip(1) {
                     let text = &entry.text;
                     match entry.speaker {
-                        Speaker::User => writeln!(f, "<|im_start|>user\n{user}: {text}<|im_end|>")?,
+                        Speaker::User => writeln!(s, "<|im_start|>user\n{text}<|im_end|>").unwrap(),
                         Speaker::Assistant => {
-                            writeln!(f, "<|im_start|>assistant\n{assistant}: {text}<|im_end|>",)?
+                            writeln!(s, "<|im_start|>assistant\n{text}<|im_end|>",).unwrap()
                         }
                     };
                 }
 
-                write!(f, "<|im_start|>assistant\n{assistant}:")?;
+                write!(s, "<|im_start|>assistant").unwrap();
             }
-            // Model::BagelMysteryTour => {
-            //     for entry in &self.history {
-            //         let text = &entry.text;
-            //         match entry.speaker {
-            //             Speaker::User => writeln!(f, "### Input:\n{user}: {text}")?,
-            //             Speaker::Assistant => writeln!(f, "### Response:\n{assistant}: {text}")?,
-            //         };
-            //     }
+            PromptTemplate::Alpaca => {
+                writeln!(s, "{}", history[0].text).unwrap();
 
-            //     write!(f, "### Response:\n{assistant}:")?;
-            // }
-            Model::BagelMysteryTour => {
-                writeln!(f, "{}", self.history[0].text)?;
-
-                for entry in self.history.iter().skip(1) {
+                for entry in history.iter().skip(1) {
                     let text = &entry.text;
                     match entry.speaker {
-                        Speaker::User => writeln!(f, "### Instruction:\n{text}")?,
-                        Speaker::Assistant => writeln!(f, "### Response:\n{text}")?,
+                        Speaker::User => writeln!(s, "### Instruction:\n{text}").unwrap(),
+                        Speaker::Assistant => writeln!(s, "### Response:\n{text}").unwrap(),
                     };
                 }
 
-                write!(f, "### Response:")?;
+                write!(s, "### Response:").unwrap();
             }
         }
 
-        Ok(())
+        s
     }
 }
