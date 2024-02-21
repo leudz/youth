@@ -125,6 +125,7 @@ struct GenerateRequest {
     temperature: f32,
     dynatemp_range: f32,
     stop_sequence: Vec<String>,
+    max_length: u32,
 }
 
 impl GenerateRequest {
@@ -142,6 +143,7 @@ impl GenerateRequest {
                 format!("\n{}", &history.user),
                 "### Instruction:".to_string(),
             ],
+            max_length: 100,
         }
     }
 }
