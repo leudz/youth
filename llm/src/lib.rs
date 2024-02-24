@@ -142,6 +142,7 @@ impl GenerateRequest {
                 format!("{}:", &history.user),
                 format!("\n{}", &history.user),
                 "### Instruction:".to_string(),
+                "<|im_end|>".to_string(),
             ],
             max_length: 100,
         }
@@ -174,6 +175,8 @@ pub enum Model {
     BagelWorldTour,
     /// https://huggingface.co/Artefact2/BondBurger-8x7B-GGUF
     BondBurger,
+    /// https://huggingface.co/intervitens/internlm2-limarp-chat-20b-GGUF
+    InternLM2,
 }
 
 impl Model {
@@ -182,7 +185,7 @@ impl Model {
             Model::Mistral | Model::Mixtral | Model::BondBurger | Model::BagelWorldTour => {
                 PromptTemplate::Mistral
             }
-            Model::OpenHermes | Model::Laserxtral => PromptTemplate::ChatML,
+            Model::OpenHermes | Model::Laserxtral | Model::InternLM2 => PromptTemplate::ChatML,
             Model::BagelMysteryTour => PromptTemplate::Alpaca,
         }
     }
@@ -196,9 +199,10 @@ impl Model {
             Model::BagelMysteryTour => "./resources/BagelMIsteryTour-v2-8x7B.Q3_K_M.gguf",
             Model::BagelWorldTour => "./resources/BagelWorldTour.Q3_K_M.imx.gguf",
             Model::BondBurger => "./resources/BondBurger-8x7B-Q3_K_M.gguf",
+            Model::InternLM2 => "./resources/internlm2-limarp-chat-20b.Q5_K_M_imx.gguf",
         };
         let gpulayers = match self {
-            Model::Mistral | Model::Laserxtral | Model::OpenHermes => "100",
+            Model::Mistral | Model::Laserxtral | Model::OpenHermes | Model::InternLM2 => "100",
             Model::Mixtral
             | Model::BagelMysteryTour
             | Model::BagelWorldTour
@@ -300,7 +304,7 @@ impl PromptTemplate {
                     .unwrap_or_default();
 
                 let instruction = (!instruction.is_empty())
-                    .then(|| format!("{instruction}\n\n"))
+                    .then(|| format!("# Instruction:\n{instruction}\n\n"))
                     .unwrap_or_default();
 
                 format!(
