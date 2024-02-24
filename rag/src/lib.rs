@@ -20,6 +20,7 @@ use std::{
 
 pub struct RAG {
     database: VectorDB,
+    current_context: Vec<Candidate>,
 }
 
 impl RAG {
@@ -28,7 +29,10 @@ impl RAG {
             .map(|database_file| bincode::deserialize_from(database_file).unwrap())
             .unwrap_or_else(|_| VectorDB::new());
 
-        RAG { database }
+        RAG {
+            database,
+            current_context: Vec::new(),
+        }
     }
 
     pub fn add(&mut self, text: impl Into<String>) {
@@ -74,11 +78,7 @@ impl RAG {
         }
     }
 
-    pub fn search(&self, query: &str, top_k: usize) -> Vec<String> {
-        self.search_threashold(query, top_k, 1.0)
-    }
-
-    pub fn search_threashold(&self, query: &str, top_k: usize, threshold: f32) -> Vec<String> {
+    fn search_threashold(&self, query: &str, top_k: usize, threshold: f32) -> Vec<(usize, f32)> {
         let embeddings_results = self.database.search_embeddings(query, top_k);
         let mut bm25_results = self.database.bm35_plus(query);
 
@@ -128,9 +128,6 @@ impl RAG {
         }
 
         results
-            .into_iter()
-            .map(|(index, _)| self.database.documents[index].text.clone())
-            .collect()
     }
 
     pub fn save(&self) {
@@ -145,12 +142,76 @@ impl RAG {
 
         std::fs::rename("./resources/database2.data", "./resources/database.data").unwrap();
     }
+
+    fn context_to_string(&self) -> String {
+        (&self.current_context)
+            .iter()
+            .map(|candidate| self.database.documents[candidate.index].text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    }
+
+    pub fn update_context(&mut self, query: &str) -> String {
+        // a few words usually mean it's a simple answer to a question from the LLM
+        // e.g. yes
+        // queries or adjustments to what the LLM said would be longer
+        if query.split_whitespace().take(3).count() < 3 {
+            return self.context_to_string();
+        }
+
+        for candicate in &mut self.current_context {
+            candicate.distance *= 1.5;
+        }
+
+        if let Some(too_distant) = self
+            .current_context
+            .iter()
+            .position(|candidate| candidate.distance > 0.7)
+        {
+            self.current_context.truncate(too_distant);
+        }
+
+        for (index, distance) in self.search_threashold(query, 5, 0.3) {
+            if let Some(candidate) = self
+                .current_context
+                .iter_mut()
+                .find(|candidate| candidate.index == index)
+            {
+                // we want to favor documents that are relevant multiple rounds
+                if distance < candidate.distance {
+                    candidate.distance = distance;
+                } else {
+                    candidate.distance = (candidate.distance * 0.5).max(1.0);
+                }
+            } else {
+                self.current_context.push(Candidate { distance, index })
+            }
+        }
+
+        self.current_context
+            .sort_unstable_by(|candidate1, candidate2| {
+                candidate1
+                    .distance
+                    .partial_cmp(&candidate2.distance)
+                    .unwrap()
+            });
+
+        self.current_context.truncate(5);
+
+        self.context_to_string()
+    }
 }
 
-#[derive(Debug)]
 struct Candidate {
     distance: f32,
     index: usize,
+}
+
+impl Debug for Candidate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Candidate { index, distance } = self;
+        f.write_fmt(format_args!("Candidate({index}, {distance})"))
+    }
 }
 
 impl PartialEq for Candidate {

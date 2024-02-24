@@ -15,13 +15,16 @@ fn main() {
 
     // rag.save();
 
-    let rag_context = rag.search_threashold("Let's do wires", 5, 0.30);
-    // dbg!(&rag_context);
-
     let mut llm = LLM::init(Model::Mistral, "Leudz", "Emma");
 
-    llm.history_mut().add_instruction("I'm going to describe you modules. You will ask me questions to collect relevant details on the module. You can ask as many questions as you want, one at a time. Based on the instructions in the context and the description I gave you, tell me how to solve the module. Don't rely on prior knowledge, only on the information I give you.");
-    llm.history_mut().add_context(rag_context.join("\n\n"));
+    llm.history_mut().add_instruction(
+        "- I'm going to describe you modules.\n\
+         - You will ask me questions to collect details on the module.\n\
+         - You can ask multiple questions. Ask a single question at a time.\n\
+         - Based on the instructions in the context and the description I gave you, tell me how to solve the module.\n\
+         - Rely only on the information I give you.
+         - Keep your replies concise, we are under a very strict time limit.
+         - If I tell you that you made a mistake, don't get stuck on your first answer and simply go through the instructions again to find the right answer.");
 
     println!("Ready");
 
@@ -44,6 +47,8 @@ fn main() {
             llm.skip_tts();
             continue;
         }
+
+        llm.history_mut().add_context(rag.update_context(&input));
 
         llm.history_mut().add(input.clone(), Speaker::User);
         input.clear();
