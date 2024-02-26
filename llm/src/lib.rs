@@ -261,11 +261,11 @@ impl History {
         }
     }
 
-    pub fn add_context(&mut self, context: impl Into<String>) {
+    pub fn set_context(&mut self, context: impl Into<String>) {
         self.context = context.into();
     }
 
-    pub fn add_instruction(&mut self, instruction: impl Into<String>) {
+    pub fn set_instruction(&mut self, instruction: impl Into<String>) {
         self.instruction = instruction.into();
     }
 }

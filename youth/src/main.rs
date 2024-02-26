@@ -17,7 +17,7 @@ fn main() {
 
     let mut llm = LLM::init(Model::Mistral, "Leudz", "Emma");
 
-    llm.history_mut().add_instruction(
+    llm.history_mut().set_instruction(
         "- I'm going to describe you modules.\n\
          - You will ask me questions to collect details on the module.\n\
          - You can ask multiple questions. Ask a single question at a time.\n\
@@ -48,7 +48,7 @@ fn main() {
             continue;
         }
 
-        llm.history_mut().add_context(rag.update_context(&input));
+        llm.history_mut().set_context(rag.update_context(&input));
 
         llm.history_mut().add(input.clone(), Speaker::User);
         input.clear();
