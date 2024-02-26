@@ -254,6 +254,11 @@ impl History {
             speaker,
             text: s.into(),
         });
+
+        if self.history.len() > 20 {
+            self.history.pop_front();
+            self.history.pop_front();
+        }
     }
 
     pub fn add_context(&mut self, context: impl Into<String>) {
