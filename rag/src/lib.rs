@@ -3,6 +3,7 @@ mod wiki_dump;
 
 pub use wiki_dump::parse_wikipedia_dump;
 
+use indicatif::ProgressStyle;
 use instant_distance::{HnswMap, Point, Search};
 use rust_bert::pipelines::sentence_embeddings::{
     SentenceEmbeddingsBuilder, SentenceEmbeddingsModel, SentenceEmbeddingsModelType,
@@ -284,9 +285,20 @@ impl VectorDB {
 
         let key = self.documents.vacant_key();
 
-        for embeddings in self.bert.encode(&sentences).unwrap() {
-            self.add_embedding(embeddings, key);
+        let progress = indicatif::ProgressBar::new(sentences.len() as u64).with_style(
+            ProgressStyle::default_bar()
+                .template("{pos}/{len} {bar:80}")
+                .unwrap()
+                .progress_chars("#.-"),
+        );
+        // Bert seems to have trouble when there are too many sentences
+        for sentences in sentences.chunks(25) {
+            for embeddings in self.bert.encode(&sentences).unwrap() {
+                self.add_embedding(embeddings, key);
+                progress.inc(1);
+            }
         }
+        progress.finish();
 
         let mut word_count = 0;
         let mut individual_word_count: HashMap<String, u64> = HashMap::new();
