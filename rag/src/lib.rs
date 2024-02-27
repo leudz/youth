@@ -252,10 +252,7 @@ struct Document {
 
 impl VectorDB {
     fn new() -> VectorDB {
-        let bert =
-            SentenceEmbeddingsBuilder::remote(SentenceEmbeddingsModelType::AllDistilrobertaV1)
-                .create_model()
-                .unwrap();
+        let bert = default_bert_model();
 
         VectorDB {
             map: instant_distance::Builder::default().build(Vec::new(), Vec::new()),
@@ -452,18 +449,28 @@ impl VectorDB {
 #[derive(Clone, Serialize, Deserialize)]
 struct BertEmbeddings(Vec<f32>);
 
-impl Point for BertEmbeddings {
-    fn distance(&self, other: &BertEmbeddings) -> f32 {
+impl BertEmbeddings {
+    fn dot_product(&self, other: &BertEmbeddings) -> f32 {
         assert_eq!(self.0.len(), other.0.len());
 
+        self.0.iter().zip(other.0.iter()).map(|(a, b)| a * b).sum()
+    }
+
+    #[allow(unused)]
+    fn cosine_similarity(&self, other: &BertEmbeddings) -> f32 {
+        self.dot_product(other) / (self.magnitude() * other.magnitude())
+    }
+
+    #[allow(unused)]
+    fn magnitude(&self) -> f32 {
+        self.0.iter().map(|v| v.powi(2)).sum::<f32>().sqrt()
+    }
+}
+
+impl Point for BertEmbeddings {
+    fn distance(&self, other: &BertEmbeddings) -> f32 {
         // For roberta we can use the dot product
-        1.0f32
-            - self
-                .0
-                .iter()
-                .zip(other.0.iter())
-                .map(|(a, b)| a * b)
-                .sum::<f32>()
+        1.0f32 - self.dot_product(other)
     }
 }
 
