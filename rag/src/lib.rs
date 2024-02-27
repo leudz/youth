@@ -321,7 +321,7 @@ impl VectorDB {
 
         let progress = indicatif::ProgressBar::new(sentences.len() as u64).with_style(
             ProgressStyle::default_bar()
-                .template("{pos}/{len} {bar:80}")
+                .template("{pos}/{len} {elapsed} {bar:80}")
                 .unwrap()
                 .progress_chars("#.-"),
         );
