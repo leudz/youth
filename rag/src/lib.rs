@@ -19,6 +19,12 @@ use std::{
     path::Path,
 };
 
+/// With 32k tokens we need to set a limit to the number of characters for the context
+/// We assume we have 28k left for the context, we keep the 5 best matches in context
+/// For safety we'll only use 5k tokens, or around 20k characters
+const CHARACTERS_PER_CHUNK: usize = 20000;
+const CHUNK_OVERLAP: usize = 10000;
+
 pub struct RAG {
     database: VectorDB,
     current_context: Vec<Candidate>,
@@ -73,7 +79,35 @@ impl RAG {
             "md" => {
                 let content = std::fs::read_to_string(path).unwrap();
 
-                self.add(content);
+                if content.len() <= CHARACTERS_PER_CHUNK {
+                    self.add(content);
+                    return;
+                }
+
+                let mut chunk_start = 0;
+                loop {
+                    if chunk_start + CHARACTERS_PER_CHUNK >= content.len() {
+                        let chunk = &content[chunk_start..];
+
+                        self.add(chunk);
+
+                        break;
+                    }
+
+                    let chunk_end = (chunk_start..chunk_start + CHARACTERS_PER_CHUNK)
+                        .rev()
+                        .find(|&i| content.is_char_boundary(i))
+                        .unwrap();
+
+                    let chunk = &content[chunk_start..chunk_end];
+
+                    self.add(chunk);
+
+                    chunk_start = (chunk_start..chunk_end - CHUNK_OVERLAP)
+                        .rev()
+                        .find(|&i| content.is_char_boundary(i))
+                        .unwrap();
+                }
             }
             _ => println!("Document not supported"),
         }
