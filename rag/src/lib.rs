@@ -325,13 +325,19 @@ impl VectorDB {
                 .unwrap()
                 .progress_chars("#.-"),
         );
-        // Bert seems to have trouble when there are too many sentences
-        for sentences in sentences.chunks(25) {
-            for embeddings in self.bert.encode(&sentences).unwrap() {
-                self.add_embedding(embeddings, key);
-                progress.inc(1);
-            }
-        }
+
+        self.add_embeddings(
+            self.bert
+                .encode(&sentences)
+                .unwrap()
+                .into_iter()
+                .map(|embedding| {
+                    progress.inc(1);
+
+                    (embedding, key)
+                }),
+        );
+
         progress.finish();
 
         let mut word_count = 0;
@@ -374,23 +380,21 @@ impl VectorDB {
         self.documents.insert(doc);
     }
 
-    fn add_embedding(&mut self, embedding: Vec<f32>, key: usize) {
-        let mut values = Vec::with_capacity(self.map.values.len() + 1);
-
-        let points = self
+    fn add_embeddings(&mut self, embeddings_and_keys: impl Iterator<Item = (Vec<f32>, usize)>) {
+        let (points, values) = self
             .map
             .iter()
             .map(|(point_id, point)| {
                 let value = self.map.values[point_id.into_inner() as usize];
 
-                values.push(value);
-
-                point.clone()
+                (point.clone(), value)
             })
-            .chain(std::iter::once(BertEmbeddings(embedding)))
-            .collect();
-
-        values.push(key);
+            .chain(
+                embeddings_and_keys
+                    .into_iter()
+                    .map(|(embedding, key)| (BertEmbeddings(embedding), key)),
+            )
+            .unzip();
 
         self.map = instant_distance::Builder::default().build(points, values);
     }
