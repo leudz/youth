@@ -10,8 +10,8 @@ fst = { version = "0.4.7" }
 html5ever = "0.26.0"
 indicatif = { workspace = true }
 instant-distance = { version = "0.6.1", features = ["with-serde"] }
-lopdf = "0.32.0"
 mdka = "1.2.1"
+pdfium-render = "0.8.18"
 rust-bert = { version = "0.22.0", features = ["download-libtorch"] }
 slab = { version = "0.4.9", features = ["serde"] }
 scraper = "0.18.1"

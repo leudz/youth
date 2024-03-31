@@ -5,6 +5,7 @@ pub use wiki_dump::parse_wikipedia_dump;
 
 use indicatif::ProgressStyle;
 use instant_distance::{HnswMap, Point, Search};
+use pdfium_render::pdfium::Pdfium;
 use rust_bert::pipelines::sentence_embeddings::{
     SentenceEmbeddingsBuilder, SentenceEmbeddingsModel, SentenceEmbeddingsModelType,
 };
@@ -12,6 +13,7 @@ use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 use shared::END_OF_SENTENCE;
 use slab::Slab;
 use std::fmt::Debug;
+use std::io::Write;
 use std::{
     collections::HashMap,
     ffi::OsStr,
@@ -60,16 +62,33 @@ impl RAG {
 
         match extension.to_str().unwrap() {
             "pdf" => {
-                let document = lopdf::Document::load(path).unwrap();
+                let pdfium = Pdfium::new(
+                    Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(
+                        "./resources",
+                    ))
+                    .or_else(|_| Pdfium::bind_to_system_library())
+                    .unwrap(),
+                );
 
-                for (page_number, _) in document.page_iter().enumerate() {
-                    let page = document.extract_text(&[page_number as u32 + 1]).unwrap();
+                let folder_name = path.file_stem().unwrap().to_str().unwrap();
+                std::fs::create_dir(format!("./resources/{folder_name}")).unwrap();
 
-                    if page.contains("Unimplemented?\n?Identity-H") {
-                        println!("Could not extract text from page {}", page_number + 1);
+                let document = pdfium.load_pdf_from_file(path, None).unwrap();
+                for (page_number, page) in document.pages().iter().enumerate() {
+                    let page = page.text().unwrap().all();
+                    let page = page
+                        .splitn(5, &[' ', '\n'])
+                        .last()
+                        .unwrap()
+                        .replace("\r\n", "\n")
+                        .to_string();
 
-                        continue;
-                    }
+                    let mut file = std::fs::File::create(format!(
+                        "./resources/{folder_name}/page {page_number}.md"
+                    ))
+                    .unwrap();
+
+                    file.write_all(page.as_bytes()).unwrap();
 
                     self.add(page);
                 }
