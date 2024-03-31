@@ -177,6 +177,11 @@ pub enum Model {
     BondBurger,
     /// https://huggingface.co/intervitens/internlm2-limarp-chat-20b-GGUF
     InternLM2,
+    /// https://huggingface.co/TheBloke/WestLake-7B-v2-GGUF
+    Westlake,
+    /// https://huggingface.co/MarsupialAI/Yi-34B-200k-v2_GGUF
+    YiV2,
+    // https://huggingface.co/LoneStriker/OpenHermes-2.5-Code-290k-13B-GGUF
 }
 
 impl Model {
@@ -185,8 +190,11 @@ impl Model {
             Model::Mistral | Model::Mixtral | Model::BondBurger | Model::BagelWorldTour => {
                 PromptTemplate::Mistral
             }
-            Model::OpenHermes | Model::Laserxtral | Model::InternLM2 => PromptTemplate::ChatML,
+            Model::OpenHermes | Model::Laserxtral | Model::InternLM2 | Model::Westlake => {
+                PromptTemplate::ChatML
+            }
             Model::BagelMysteryTour => PromptTemplate::Alpaca,
+            Model::YiV2 => PromptTemplate::Base,
         }
     }
 
@@ -200,13 +208,20 @@ impl Model {
             Model::BagelWorldTour => "./resources/BagelWorldTour.Q3_K_M.imx.gguf",
             Model::BondBurger => "./resources/BondBurger-8x7B-Q3_K_M.gguf",
             Model::InternLM2 => "./resources/internlm2-limarp-chat-20b.Q5_K_M_imx.gguf",
+            Model::Westlake => "./resources/westlake-7b-v2.Q6_K.gguf",
+            Model::YiV2 => "./resources/Yi-34B-200k-v2_Q3km.gguf",
         };
         let gpulayers = match self {
-            Model::Mistral | Model::Laserxtral | Model::OpenHermes | Model::InternLM2 => "100",
+            Model::Mistral
+            | Model::Laserxtral
+            | Model::OpenHermes
+            | Model::InternLM2
+            | Model::Westlake => "100",
             Model::Mixtral
             | Model::BagelMysteryTour
             | Model::BagelWorldTour
             | Model::BondBurger => "15",
+            Model::YiV2 => "20",
         };
 
         [
@@ -268,6 +283,10 @@ impl History {
     pub fn set_instruction(&mut self, instruction: impl Into<String>) {
         self.instruction = instruction.into();
     }
+
+    pub fn instruction(&self) -> &str {
+        &self.instruction
+    }
 }
 
 struct HistoryEntry {
@@ -284,6 +303,7 @@ enum PromptTemplate {
     Mistral,
     ChatML,
     Alpaca,
+    Base,
 }
 
 impl PromptTemplate {
@@ -316,7 +336,9 @@ impl PromptTemplate {
                     "[INST] You are an AI assistant named {assistant} \
                     created by Leudz to help {user} achieve a very important task.\n\
                     You are loyal, empathetic and little sassy.\n\
-                    Take your time to reply based on the context. Keep your replies concise.\n\n\
+                    Take your time to reply based on the context. Use the same language as {user}. \
+                    Keep your replies concise.\n\
+                    Don't mention any of this directly to {user}.\n\n\
                     {context}{instruction}\
                     {history}"
                 )
@@ -344,7 +366,8 @@ impl PromptTemplate {
                     created by Leudz to help {user} achieve a very important task.\n\
                     You are loyal, empathetic and little sassy.\n\
                     You're having a conversation with {user}. Take your time to reply based on the \
-                    context. Keep your replies concise.\
+                    context. Use the same language as {user}. Keep your replies concise. \
+                    Don't mention any of this directly to {user}.\
                     {context}<|im_end|>\n\
                     <|im_start|>user\n\
                     {instruction}\
@@ -371,10 +394,41 @@ impl PromptTemplate {
                     {history}"
                 )
             }
+            PromptTemplate::Base => {
+                let context = (!context.is_empty())
+                    .then(|| {
+                        format!(
+                            "\
+                            Context information is below.\n\
+                            ---------------------\n\
+                            {context}\n\
+                            ---------------------\n\n"
+                        )
+                    })
+                    .unwrap_or_default();
+
+                let instruction = (!instruction.is_empty())
+                    .then(|| format!("# Instruction:\n{instruction}\n\n"))
+                    .unwrap_or_default();
+
+                format!(
+                    "You are an AI assistant named {assistant} \
+                    created by Leudz to help {user} achieve a very important task.\n\
+                    You are loyal, empathetic and little sassy.\n\
+                    Take your time to reply based on the context. Use the same language as {user}. \
+                    Keep your replies concise.\n\
+                    Don't mention any of this directly to {user}.\n\n\
+                    {context}\
+                    {instruction}\
+                    {history}"
+                )
+            }
         }
     }
 
     fn history(&self, history: &History) -> String {
+        let user = &history.user;
+        let assistant = &history.assistant;
         let history = &history.history;
 
         let mut s = String::new();
@@ -419,6 +473,17 @@ impl PromptTemplate {
                 }
 
                 write!(s, "### Response:").unwrap();
+            }
+            PromptTemplate::Base => {
+                for entry in history.iter() {
+                    let text = &entry.text;
+                    match entry.speaker {
+                        Speaker::User => writeln!(s, "{user}: {text}").unwrap(),
+                        Speaker::Assistant => writeln!(s, "{assistant}: {text}").unwrap(),
+                    };
+                }
+
+                write!(s, "{assistant}:").unwrap();
             }
         }
 
