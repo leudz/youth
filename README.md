@@ -8,10 +8,11 @@ Youth is a playground for me to explore LLM using Rust on any hardware.
 
 ```txt
 You are given the short story "Youth", write a teaser for someone that never read it
-> In the heart of the countryside, two unlikely friends - Red and Slim - stumble upon mysterious creatures that could change
-their lives forever. As they navigate the thrilling world of possible extraterrestrial beings and the challenges of youthful
-curiosity, they'll learn valuable lessons about friendship, trust, and the incredible mysteries of the universe. Join them
-on this captivating adventure filled with laughter, suspense, and the pure joy of discovery.
+> In the heart of the countryside, two unlikely friends - Red and Slim - stumble upon mysterious
+creatures that could change their lives forever. As they navigate the thrilling world of possible
+extraterrestrial beings and the challenges of youthful curiosity, they'll learn valuable lessons
+about friendship, trust, and the incredible mysteries of the universe. Join them on this
+captivating adventure filled with laughter, suspense, and the pure joy of discovery.
 ```
 
 ## STT/Text -> RAG -> LLM -> TTS/Text
